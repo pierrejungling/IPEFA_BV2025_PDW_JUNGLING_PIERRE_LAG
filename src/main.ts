@@ -18,6 +18,7 @@ const bootstrap = async (): Promise<void> => {
   }));
   app.useGlobalInterceptors(new ApiInterceptor());
   await app.listen(parseInt(configManager.getValue(ConfigKey.APP_PORT), 10));
+  
 };
 
 bootstrap().then(()=>{

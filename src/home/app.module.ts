@@ -11,7 +11,7 @@ import { APP_GUARD } from '@nestjs/core';
 @Module({
         imports: [
             TypeOrmModule.forRoot(configManager.getTypeOrmConfig()),
-            SecurityModule
+            SecurityModule,
         ],
         controllers: [AppController],
         providers: [AppService, {
