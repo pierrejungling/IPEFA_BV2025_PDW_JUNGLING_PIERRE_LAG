@@ -39,8 +39,15 @@ export class SecurityService {
     }
     
     async signup(payload: SignupPayload): Promise<Credential | null> {
-        const result: Credential | null = await this.repository.findOneBy({username: payload.username});
-        if (result !== null && result !== undefined) {
+        // Vérifier si le username existe déjà
+        const existingUsername: Credential | null = await this.repository.findOneBy({username: payload.username});
+        if (existingUsername !== null && existingUsername !== undefined) {
+            throw new UserAlreadyExistException();
+        }
+        
+        // Vérifier si l'email existe déjà
+        const existingEmail: Credential | null = await this.repository.findOneBy({mail: payload.mail});
+        if (existingEmail !== null && existingEmail !== undefined) {
             throw new UserAlreadyExistException();
         }
         
@@ -52,12 +59,20 @@ export class SecurityService {
             const credential = new Credential();
             credential.username = payload.username;
             credential.password = encryptedPassword;
-            credential.facebookHash = payload.facebookHash;
-            credential.googleHash = payload.googleHash;
+            credential.facebookHash = payload.facebookHash || '';
+            credential.googleHash = payload.googleHash || '';
             credential.mail = payload.mail;
             
             return await this.repository.save(credential);
         } catch (e) {
+            console.error('Erreur lors de l\'inscription:', e);
+            // Si c'est une erreur de contrainte unique, c'est que l'utilisateur existe déjà
+            if (e && typeof e === 'object' && 'code' in e) {
+                const errorCode = (e as any).code;
+                if (errorCode === '23505') { // PostgreSQL unique constraint violation
+                    throw new UserAlreadyExistException();
+                }
+            }
             throw new SignupException();
         }
     }

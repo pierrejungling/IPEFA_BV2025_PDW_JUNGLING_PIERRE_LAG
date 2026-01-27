@@ -8,7 +8,7 @@ export class Gravure {
     @PrimaryColumn('varchar', { length:26, default: () => `'${ulid()}'` })
     id_gravure : string;
 
-    @Column({nullable: false})
+    @Column({type: 'timestamp', nullable: false})
     date_gravure: Date;
     
 

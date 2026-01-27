@@ -9,28 +9,28 @@ export class Commande {
     @PrimaryColumn('varchar', { length:26, default: () => `'${ulid()}'` })
     id_commande : string;
 
-    @Column({nullable: false})
+    @Column({type: 'timestamp', nullable: false})
     date_commande: Date;
 
-    @Column({nullable: true})
-    deadline: Date;
+    @Column({type: 'timestamp', nullable: true})
+    deadline: Date | null;
 
-    @Column({nullable: true})
-    produit: string;
+    @Column({type: 'varchar', nullable: true})
+    produit: string | null;
     
-    @Column({nullable: true})
-    description: string;
+    @Column({type: 'text', nullable: true})
+    description: string | null;
 
-    @Column({nullable: true})
-    fichiers_joints: string;
+    @Column({type: 'text', nullable: true})
+    fichiers_joints: string | null;
 
-    @Column({default: false})
+    @Column({type: 'boolean', default: false})
     CGV_acceptée: boolean;
 
-    @Column({default: false})
+    @Column({type: 'boolean', default: false})
     newsletter_acceptée: boolean;
 
-    @Column({nullable: false, default: StatutCommande.EN_ATTENTE_INFORMATION})
+    @Column({type: 'varchar', nullable: false, default: StatutCommande.EN_ATTENTE_INFORMATION})
     statut_commande: StatutCommande;
 
 

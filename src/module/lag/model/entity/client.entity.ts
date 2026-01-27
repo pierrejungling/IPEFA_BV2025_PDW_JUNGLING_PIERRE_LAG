@@ -7,22 +7,25 @@ export class Client {
     @PrimaryColumn('varchar', { length:26, default: () => `'${ulid()}'` })
     id_client : string;
 
-    @Column({length: 50, nullable: true})
-    nom: string;
+    @Column({type: 'varchar', length: 50, nullable: true})
+    nom: string | null;
 
-    @Column({length: 50, nullable: true})
-    prénom: string;
+    @Column({type: 'varchar', length: 50, nullable: true})
+    prénom: string | null;
 
-    @Column({length: 50, nullable: true})
-    société: string;
+    @Column({type: 'varchar', length: 50, nullable: true})
+    société: string | null;
 
-    @Column({length: 50, nullable: false})
+    @Column({type: 'varchar', length: 50, nullable: false})
     mail: string;
 
-    @Column({length: 15, nullable: false})
+    @Column({type: 'varchar', length: 15, nullable: false})
     téléphone: string;
 
-    @Column({length: 100, nullable: true})
-    adresse: string;
+    @Column({type: 'varchar', length: 100, nullable: true})
+    adresse: string | null;
+
+    @Column({type: 'varchar', length: 20, nullable: true})
+    tva: string | null;
     
 }

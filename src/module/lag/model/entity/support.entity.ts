@@ -9,17 +9,17 @@ export class Support {
     @PrimaryColumn('varchar', { length:26, default: () => `'${ulid()}'` })
     id_support : string;
 
-    @Column({nullable: false})
+    @Column({type: 'varchar', nullable: false})
     nom_support: string;
 
-    @Column({nullable: true})
-    type_matériaux: TypeMateriaux;
+    @Column({type: 'varchar', nullable: true})
+    type_matériaux: TypeMateriaux | null;
 
-    @Column({nullable: true})
-    dimensions: string;
+    @Column({type: 'varchar', nullable: true})
+    dimensions: string | null;
 
-    @Column({nullable: true})
-    prix_support: number;
+    @Column({type: 'decimal', nullable: true})
+    prix_support: number | null;
 
     @ManyToOne(() => Gravure, (gravure) => gravure.id_gravure)
     @JoinColumn({name: 'id_gravure'})
