@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsEmail, IsArray, IsDateString, IsString, Length } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsEmail, IsArray, IsDateString, IsString, Length, IsInt, Min } from 'class-validator';
 import { Couleur } from '../../entity/enum';
 
 export class CoordonneesContactPayload {
@@ -89,4 +89,10 @@ export class AjouterCommandePayload {
     @IsOptional()
     @IsArray()
     fichiers_joints?: string[]; // URLs ou chemins des fichiers
+
+    @ApiProperty({ required: false })
+    @IsOptional()
+    @IsInt()
+    @Min(1)
+    quantité?: number;
 }

@@ -20,31 +20,36 @@ export class CommandeService {
         // Créer ou récupérer le client
         let client: Client | null = null;
         
-        if (payload.coordonnees_contact?.mail) {
+        // Chercher un client existant seulement si un email est fourni
+        if (payload.coordonnees_contact?.mail && payload.coordonnees_contact.mail.trim()) {
             client = await this.clientRepository.findOne({
-                where: { mail: payload.coordonnees_contact.mail }
+                where: { mail: payload.coordonnees_contact.mail.trim() }
             });
         }
 
         if (!client) {
             // Générer un ID unique manuellement
             const clientId = ulid();
-            const mailValue = payload.coordonnees_contact?.mail ?? `client-${Date.now()}-${Math.random().toString(36).substring(7)}@sans-email.com`;
+            const mailValue = payload.coordonnees_contact?.mail?.trim() || null;
+            const telephoneValue = payload.coordonnees_contact?.telephone?.trim() || null;
             
-            // Vérifier si un client avec cet email existe déjà (cas où l'email généré existe par hasard)
-            let existingClient = await this.clientRepository.findOne({
-                where: { mail: mailValue }
-            });
+            // Vérifier si un client avec cet email existe déjà (seulement si un email est fourni)
+            let existingClient: Client | null = null;
+            if (mailValue) {
+                existingClient = await this.clientRepository.findOne({
+                    where: { mail: mailValue }
+                });
+            }
             
             if (!existingClient) {
                 client = new Client();
                 client.id_client = clientId;
-                client.nom = payload.coordonnees_contact?.nom ?? null;
-                client.prénom = payload.coordonnees_contact?.prenom ?? null;
+                client.nom = payload.coordonnees_contact?.nom?.trim() || null;
+                client.prénom = payload.coordonnees_contact?.prenom?.trim() || null;
                 client.mail = mailValue;
-                client.téléphone = payload.coordonnees_contact?.telephone ?? '0000000000';
-                client.adresse = payload.coordonnees_contact?.adresse ?? null;
-                client.tva = payload.coordonnees_contact?.tva ?? null;
+                client.téléphone = telephoneValue;
+                client.adresse = payload.coordonnees_contact?.adresse?.trim() || null;
+                client.tva = payload.coordonnees_contact?.tva?.trim() || null;
                 
                 try {
                     client = await this.clientRepository.save(client);
@@ -63,20 +68,23 @@ export class CommandeService {
             }
         } else {
             // Mettre à jour les informations du client si elles ont changé
-            if (payload.coordonnees_contact?.nom) {
-                client.nom = payload.coordonnees_contact.nom;
+            if (payload.coordonnees_contact?.nom !== undefined) {
+                client.nom = payload.coordonnees_contact.nom?.trim() || null;
             }
-            if (payload.coordonnees_contact?.prenom) {
-                client.prénom = payload.coordonnees_contact.prenom;
+            if (payload.coordonnees_contact?.prenom !== undefined) {
+                client.prénom = payload.coordonnees_contact.prenom?.trim() || null;
             }
-            if (payload.coordonnees_contact?.telephone) {
-                client.téléphone = payload.coordonnees_contact.telephone;
+            if (payload.coordonnees_contact?.telephone !== undefined) {
+                client.téléphone = payload.coordonnees_contact.telephone?.trim() || null;
+            }
+            if (payload.coordonnees_contact?.mail !== undefined) {
+                client.mail = payload.coordonnees_contact.mail?.trim() || null;
             }
             if (payload.coordonnees_contact?.adresse !== undefined) {
-                client.adresse = payload.coordonnees_contact.adresse ?? null;
+                client.adresse = payload.coordonnees_contact.adresse?.trim() || null;
             }
             if (payload.coordonnees_contact?.tva !== undefined) {
-                client.tva = payload.coordonnees_contact.tva ?? null;
+                client.tva = payload.coordonnees_contact.tva?.trim() || null;
             }
             client = await this.clientRepository.save(client);
         }
@@ -88,8 +96,10 @@ export class CommandeService {
         commande.deadline = payload.deadline ? new Date(payload.deadline) : null;
         commande.date_commande = new Date();
         commande.description = payload.description_projet ?? null;
+        commande.quantité = payload.quantité ?? 1;
         commande.fichiers_joints = payload.fichiers_joints && payload.fichiers_joints.length > 0 ? payload.fichiers_joints.join(',') : null;
         commande.statut_commande = StatutCommande.EN_ATTENTE_INFORMATION;
+        commande.statuts_actifs = null; // Pas de statuts multiples au départ
         commande.client = client;
         commande.CGV_acceptée = false;
         commande.newsletter_acceptée = false;
@@ -171,5 +181,322 @@ export class CommandeService {
                 date_commande: 'DESC'
             }
         });
+    }
+
+    async getCommandeById(idCommande: string): Promise<any> {
+        const commande = await this.commandeRepository.findOne({
+            where: { id_commande: idCommande },
+            relations: ['client']
+        });
+
+        if (!commande) {
+            throw new Error('Commande non trouvée');
+        }
+
+        // Récupérer la gravure associée avec ses relations
+        const gravure = await this.gravureRepository.findOne({
+            where: { commande: { id_commande: idCommande } },
+            relations: ['commande']
+        });
+
+        let support: Support | null = null;
+        let personnalisation: Personnalisation | null = null;
+
+        if (gravure) {
+            support = await this.supportRepository.findOne({
+                where: { gravure: { id_gravure: gravure.id_gravure } }
+            });
+
+            personnalisation = await this.personnalisationRepository.findOne({
+                where: { gravure: { id_gravure: gravure.id_gravure } }
+            });
+        }
+
+        // Retourner un objet combiné pour faciliter l'affichage côté frontend
+        return {
+            ...commande,
+            support: support ? {
+                nom_support: support.nom_support,
+                prix_support: support.prix_support,
+                url_support: support.url_support,
+                dimensions: support.dimensions
+            } : null,
+            personnalisation: personnalisation ? {
+                texte: personnalisation.texte,
+                police: personnalisation.police,
+                couleur: personnalisation.couleur
+            } : null,
+            gravure: gravure ? {
+                dimensions: support ? support.dimensions : null
+            } : null
+        };
+    }
+
+    async updateCommande(idCommande: string, payload: any): Promise<Commande> {
+        const commande = await this.commandeRepository.findOne({
+            where: { id_commande: idCommande },
+            relations: ['client']
+        });
+
+        if (!commande) {
+            throw new Error('Commande non trouvée');
+        }
+
+        // Mettre à jour les champs de la commande
+        if (payload.produit !== undefined) commande.produit = payload.produit;
+        if (payload.deadline !== undefined) commande.deadline = payload.deadline ? new Date(payload.deadline) : null;
+        if (payload.description !== undefined) commande.description = payload.description;
+        if (payload.quantité !== undefined) commande.quantité = payload.quantité;
+        if (payload.prix_final !== undefined) commande.prix_final = payload.prix_final;
+
+        // Mettre à jour les coordonnées du client si fournies
+        if (payload.coordonnees_contact) {
+            const client = commande.client;
+            if (payload.coordonnees_contact.nom !== undefined) client.nom = payload.coordonnees_contact.nom?.trim() || null;
+            if (payload.coordonnees_contact.prenom !== undefined) client.prénom = payload.coordonnees_contact.prenom?.trim() || null;
+            if (payload.coordonnees_contact.telephone !== undefined) client.téléphone = payload.coordonnees_contact.telephone?.trim() || null;
+            if (payload.coordonnees_contact.mail !== undefined) client.mail = payload.coordonnees_contact.mail?.trim() || null;
+            if (payload.coordonnees_contact.adresse !== undefined) client.adresse = payload.coordonnees_contact.adresse?.trim() || null;
+            if (payload.coordonnees_contact.tva !== undefined) client.tva = payload.coordonnees_contact.tva?.trim() || null;
+            await this.clientRepository.save(client);
+        }
+
+        // Récupérer la gravure associée
+        const gravure = await this.gravureRepository.findOne({
+            where: { commande: { id_commande: idCommande } }
+        });
+
+        if (gravure) {
+            // Mettre à jour le support
+            if (payload.support) {
+                let support = await this.supportRepository.findOne({
+                    where: { gravure: { id_gravure: gravure.id_gravure } }
+                });
+
+                if (!support) {
+                    support = new Support();
+                    support.id_support = ulid();
+                    support.gravure = gravure;
+                }
+
+                if (payload.support.nom_support !== undefined) support.nom_support = payload.support.nom_support;
+                if (payload.support.prix_support !== undefined) support.prix_support = payload.support.prix_support;
+                if (payload.support.url_support !== undefined) support.url_support = payload.support.url_support;
+                if (payload.gravure?.dimensions !== undefined) support.dimensions = payload.gravure.dimensions;
+
+                await this.supportRepository.save(support);
+            }
+
+            // Mettre à jour la personnalisation
+            if (payload.personnalisation) {
+                let personnalisation = await this.personnalisationRepository.findOne({
+                    where: { gravure: { id_gravure: gravure.id_gravure } }
+                });
+
+                if (!personnalisation) {
+                    personnalisation = new Personnalisation();
+                    personnalisation.id_personnalisation = ulid();
+                    personnalisation.texte = '';
+                    personnalisation.gravure = gravure;
+                }
+
+                if (payload.personnalisation.texte !== undefined) personnalisation.texte = payload.personnalisation.texte;
+                if (payload.personnalisation.police !== undefined) personnalisation.police = payload.personnalisation.police;
+                if (payload.personnalisation.couleur !== undefined) personnalisation.couleur = payload.personnalisation.couleur;
+
+                await this.personnalisationRepository.save(personnalisation);
+            }
+        }
+
+        return await this.commandeRepository.save(commande);
+    }
+
+    async updateStatutCommande(idCommande: string, nouveauStatut: StatutCommande): Promise<Commande> {
+        const commande = await this.commandeRepository.findOne({
+            where: { id_commande: idCommande }
+        });
+
+        if (!commande) {
+            throw new Error('Commande non trouvée');
+        }
+
+        const statutActuel = commande.statut_commande;
+        let statutsActifs = commande.statuts_actifs || [];
+
+        // Gestion du statut ANNULEE
+        if (nouveauStatut === StatutCommande.ANNULEE) {
+            commande.statut_commande = StatutCommande.ANNULEE;
+            commande.statuts_actifs = null;
+            return await this.commandeRepository.save(commande);
+        }
+
+        // Si on décoche ANNULEE (retour à un autre statut)
+        // Utiliser une comparaison de string pour éviter l'erreur TypeScript
+        if (statutActuel === 'annulee' && nouveauStatut as string !== 'annulee') {
+            commande.statut_commande = nouveauStatut as any;
+            commande.statuts_actifs = null;
+            return await this.commandeRepository.save(commande);
+        }
+
+        // Ordre des étapes dans le workflow
+        const ordreEtapes: StatutCommande[] = [
+            StatutCommande.EN_ATTENTE_INFORMATION,
+            StatutCommande.A_MODELLISER_PREPARER,
+            StatutCommande.A_GRAVER,
+            StatutCommande.A_FINIR_LAVER_ASSEMBLER_PEINDRE,
+            StatutCommande.A_PRENDRE_EN_PHOTO,
+        ];
+
+        // Si on demande un retour à "À Prendre en photo" depuis les colonnes finales
+        const statutsFinaux = [StatutCommande.A_LIVRER, StatutCommande.A_METTRE_EN_LIGNE, StatutCommande.A_FACTURER];
+        if (nouveauStatut === StatutCommande.A_PRENDRE_EN_PHOTO && statutsActifs.length > 0) {
+            // Retour à "À Prendre en photo" : supprimer tous les statuts_actifs
+            commande.statut_commande = StatutCommande.A_PRENDRE_EN_PHOTO;
+            commande.statuts_actifs = null;
+            return await this.commandeRepository.save(commande);
+        }
+
+        // Si on coche/décoche un des 3 statuts finaux
+        if (statutsFinaux.includes(nouveauStatut)) {
+            // Si le statut est dans statuts_actifs, on le coche (le compléter)
+            if (statutsActifs.includes(nouveauStatut)) {
+                // Retirer ce statut de la liste (la commande est complétée pour ce statut)
+                statutsActifs = statutsActifs.filter(s => s !== nouveauStatut);
+                commande.statuts_actifs = statutsActifs.length > 0 ? statutsActifs : null;
+
+                // Si tous les statuts finaux sont complétés, passer à TERMINE
+                const tousCompletes = statutsFinaux.every(statut => !statutsActifs.includes(statut));
+                
+                if (tousCompletes) {
+                    commande.statut_commande = StatutCommande.TERMINE;
+                    commande.statuts_actifs = null;
+                }
+            } else {
+                // Le statut n'est pas dans statuts_actifs, donc on le décoche (retour en arrière)
+                // Le remettre dans statuts_actifs
+                if (!statutsActifs || statutsActifs.length === 0) {
+                    // Si aucun statut actif, recréer la liste avec ce statut
+                    statutsActifs = [nouveauStatut];
+                } else {
+                    // Ajouter ce statut à la liste s'il n'y est pas déjà
+                    if (!statutsActifs.includes(nouveauStatut)) {
+                        statutsActifs.push(nouveauStatut);
+                    }
+                }
+                commande.statuts_actifs = statutsActifs;
+                // Si on était à TERMINE, revenir à "À Prendre en photo"
+                if (commande.statut_commande === StatutCommande.TERMINE) {
+                    commande.statut_commande = StatutCommande.A_PRENDRE_EN_PHOTO;
+                }
+            }
+            return await this.commandeRepository.save(commande);
+        }
+
+        // Si on coche dans "À prendre en photo", créer les 3 statuts finaux
+        if (statutActuel === StatutCommande.A_PRENDRE_EN_PHOTO && nouveauStatut === StatutCommande.A_PRENDRE_EN_PHOTO) {
+            // La commande doit apparaître dans les 3 colonnes simultanément
+            commande.statuts_actifs = [
+                StatutCommande.A_LIVRER,
+                StatutCommande.A_METTRE_EN_LIGNE,
+                StatutCommande.A_FACTURER
+            ];
+            // Le statut principal reste "À prendre en photo"
+            return await this.commandeRepository.save(commande);
+        }
+
+        // Si on demande un retour en arrière (nouveauStatut est une étape précédente)
+        const indexActuel = ordreEtapes.indexOf(statutActuel);
+        const indexNouveau = ordreEtapes.indexOf(nouveauStatut);
+        
+        // Si la commande est terminée et qu'on demande un retour en arrière
+        if (statutActuel === StatutCommande.TERMINE && indexNouveau !== -1) {
+            // Retour en arrière depuis TERMINE : mettre le statut à l'étape demandée
+            commande.statut_commande = nouveauStatut;
+            commande.statuts_actifs = null;
+            return await this.commandeRepository.save(commande);
+        }
+        
+        // Si la commande est dans les 3 dernières colonnes (a des statuts_actifs), on peut revenir en arrière
+        if (statutsActifs.length > 0 && indexNouveau !== -1) {
+            // Retour en arrière depuis les colonnes finales : mettre le statut à l'étape demandée
+            commande.statut_commande = nouveauStatut;
+            commande.statuts_actifs = null;
+            return await this.commandeRepository.save(commande);
+        }
+        
+        if (indexNouveau !== -1 && indexActuel !== -1 && indexNouveau < indexActuel) {
+            // Retour en arrière : mettre le statut à l'étape précédente demandée
+            commande.statut_commande = nouveauStatut;
+            commande.statuts_actifs = null;
+            return await this.commandeRepository.save(commande);
+        }
+
+        // Transitions normales : En attente -> À modéliser -> À graver -> À finir/laver/assembler/peindre -> À prendre en photo
+        // Quand on coche dans une colonne, on passe au statut suivant
+        const transitions: Record<StatutCommande, StatutCommande | null> = {
+            [StatutCommande.EN_ATTENTE_INFORMATION]: StatutCommande.A_MODELLISER_PREPARER,
+            [StatutCommande.A_MODELLISER_PREPARER]: StatutCommande.A_GRAVER,
+            [StatutCommande.A_GRAVER]: StatutCommande.A_FINIR_LAVER_ASSEMBLER_PEINDRE,
+            [StatutCommande.A_FINIR_LAVER_ASSEMBLER_PEINDRE]: StatutCommande.A_PRENDRE_EN_PHOTO,
+            [StatutCommande.A_PRENDRE_EN_PHOTO]: null, // Géré séparément ci-dessus
+            [StatutCommande.A_LIVRER]: null, // Géré ci-dessus
+            [StatutCommande.A_METTRE_EN_LIGNE]: null, // Géré ci-dessus
+            [StatutCommande.A_FACTURER]: null, // Géré ci-dessus
+            [StatutCommande.TERMINE]: null,
+            [StatutCommande.ANNULEE]: null, // Géré séparément ci-dessus
+        };
+
+        // Vérifier que la transition est valide (on coche dans la colonne actuelle)
+        if (statutActuel === nouveauStatut && transitions[statutActuel] !== null) {
+            // C'est une case à cocher, passer au statut suivant
+            commande.statut_commande = transitions[statutActuel]!;
+            commande.statuts_actifs = null;
+        } else if (nouveauStatut !== statutActuel && !statutsFinaux.includes(nouveauStatut)) {
+            // Transition directe vers un autre statut (non géré normalement, mais on l'autorise)
+            commande.statut_commande = nouveauStatut;
+            commande.statuts_actifs = null;
+        }
+
+        return await this.commandeRepository.save(commande);
+    }
+
+    async deleteCommande(idCommande: string): Promise<void> {
+        const commande = await this.commandeRepository.findOne({
+            where: { id_commande: idCommande },
+            relations: ['client']
+        });
+
+        if (!commande) {
+            throw new Error('Commande non trouvée');
+        }
+
+        // Trouver la gravure associée à cette commande
+        const gravure = await this.gravureRepository.findOne({
+            where: { commande: { id_commande: idCommande } }
+        });
+
+        if (gravure) {
+            // Supprimer le support associé à cette gravure
+            const support = await this.supportRepository.findOne({
+                where: { gravure: { id_gravure: gravure.id_gravure } }
+            });
+            if (support) {
+                await this.supportRepository.remove(support);
+            }
+
+            // Supprimer la personnalisation associée à cette gravure
+            const personnalisation = await this.personnalisationRepository.findOne({
+                where: { gravure: { id_gravure: gravure.id_gravure } }
+            });
+            if (personnalisation) {
+                await this.personnalisationRepository.remove(personnalisation);
+            }
+
+            // Supprimer la gravure
+            await this.gravureRepository.remove(gravure);
+        }
+
+        // Supprimer la commande
+        await this.commandeRepository.remove(commande);
     }
 }

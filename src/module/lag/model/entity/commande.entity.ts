@@ -33,6 +33,14 @@ export class Commande {
     @Column({type: 'varchar', nullable: false, default: StatutCommande.EN_ATTENTE_INFORMATION})
     statut_commande: StatutCommande;
 
+    @Column({type: 'simple-array', nullable: true})
+    statuts_actifs: StatutCommande[] | null;
+
+    @Column({type: 'decimal', nullable: true})
+    prix_final: number | null;
+
+    @Column({type: 'integer', nullable: true})
+    quantité: number | null;
 
     @ManyToOne(() => Client, (client) => client.id_client)
     @JoinColumn({name: 'id_client'})

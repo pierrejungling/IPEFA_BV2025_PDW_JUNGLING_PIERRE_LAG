@@ -21,6 +21,9 @@ export class Support {
     @Column({type: 'decimal', nullable: true})
     prix_support: number | null;
 
+    @Column({type: 'varchar', nullable: true})
+    url_support: string | null;
+
     @ManyToOne(() => Gravure, (gravure) => gravure.id_gravure)
     @JoinColumn({name: 'id_gravure'})
     gravure: Gravure;

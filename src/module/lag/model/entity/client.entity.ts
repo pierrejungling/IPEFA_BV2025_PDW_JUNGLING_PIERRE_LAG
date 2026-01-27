@@ -16,11 +16,11 @@ export class Client {
     @Column({type: 'varchar', length: 50, nullable: true})
     société: string | null;
 
-    @Column({type: 'varchar', length: 50, nullable: false})
-    mail: string;
+    @Column({type: 'varchar', length: 50, nullable: true})
+    mail: string | null;
 
-    @Column({type: 'varchar', length: 15, nullable: false})
-    téléphone: string;
+    @Column({type: 'varchar', length: 15, nullable: true})
+    téléphone: string | null;
 
     @Column({type: 'varchar', length: 100, nullable: true})
     adresse: string | null;
